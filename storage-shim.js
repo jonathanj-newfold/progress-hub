@@ -172,7 +172,12 @@
     '#ph-banner{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:99999;display:flex;gap:10px;align-items:center;padding:10px 14px;border-radius:10px;font:13px Inter,system-ui,sans-serif;color:#fff;box-shadow:0 6px 24px rgba(0,0,0,.4)}' +
     '#ph-banner.conflict{background:#b45309}#ph-banner.remote{background:#1d4ed8}#ph-banner.view{background:#475569}' +
     '#ph-banner button{background:rgba(255,255,255,.2);border:0;color:#fff;border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit}' +
-    '#ph-toggle{display:block;margin-top:14px;color:#60a5fa;font-size:13px;text-align:center;text-decoration:none}';
+    '#ph-toggle{display:block;margin-top:14px;color:#60a5fa;font-size:13px;text-align:center;text-decoration:none}' +
+    '#ph-pw{position:fixed;inset:0;z-index:2147483000;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;font-family:Inter,system-ui,sans-serif}' +
+    '#ph-pw form{width:320px;max-width:90vw;background:#161a20;border:1px solid #2a2f38;border-radius:14px;padding:24px;color:#e5e7eb}#ph-pw h2{margin:0 0 14px;font-size:18px}' +
+    '#ph-pw input{width:100%;box-sizing:border-box;margin-bottom:10px;padding:10px 12px;background:#0d0f12;border:1px solid #2a2f38;border-radius:8px;color:#e5e7eb;font-size:14px}' +
+    '#ph-pw .row{display:flex;gap:8px}#ph-pw .row button{flex:1;padding:10px;border:0;border-radius:8px;background:#2a2f38;color:#e5e7eb;font-weight:600;cursor:pointer}#ph-pw .row button[type=submit]{background:#3b82f6;color:#fff}' +
+    '#ph-pw-msg{margin-top:12px;font-size:13px;color:#94a3b8;min-height:16px}#ph-pw-msg.err{color:#f87171}';
   var st = document.createElement('style'); st.textContent = css; document.documentElement.appendChild(st);
 
   function showLogin(msg) {
@@ -226,10 +231,33 @@
     var c = document.getElementById('ph-chip');
     if (!c) {
       c = document.createElement('div'); c.id = 'ph-chip'; document.documentElement.appendChild(c);
-      c.addEventListener('click', function (e) { if (e.target.tagName === 'BUTTON') signOut(); });
+      c.addEventListener('click', function (e) { var a = e.target.getAttribute && e.target.getAttribute('data-a'); if (a === 'out') signOut(); else if (a === 'pw') pwDialog(); });
     }
     var s = Object.keys(conflicts).length ? 'Conflict' : retryMs ? 'Offline, retrying' : Object.keys(dirty).length ? 'Saving…' : role === 'editor' ? 'Saved' : '';
-    c.innerHTML = '<span>' + esc(myName) + (s ? ' · ' + s : '') + '</span><button>Sign out</button>';
+    c.innerHTML = '<span>' + esc(myName) + (s ? ' · ' + s : '') + '</span><button data-a="pw">Change password</button><button data-a="out">Sign out</button>';
+  }
+  function pwDialog() {
+    if (document.getElementById('ph-pw')) return;
+    var o = document.createElement('div'); o.id = 'ph-pw';
+    o.innerHTML = '<form><h2>Change password</h2>' +
+      '<input id="ph-pw1" type="password" placeholder="New password (min 8 characters)" autocomplete="new-password" minlength="8" required>' +
+      '<input id="ph-pw2" type="password" placeholder="Confirm new password" autocomplete="new-password" minlength="8" required>' +
+      '<div class="row"><button type="button" data-a="x">Cancel</button><button type="submit">Update</button></div><div id="ph-pw-msg"></div></form>';
+    document.documentElement.appendChild(o);
+    var msg = function (t, err) { var m = document.getElementById('ph-pw-msg'); m.textContent = t; m.className = err ? 'err' : ''; };
+    o.addEventListener('click', function (e) { if (e.target === o || e.target.getAttribute('data-a') === 'x') o.remove(); });
+    o.querySelector('form').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var p1 = document.getElementById('ph-pw1').value, p2 = document.getElementById('ph-pw2').value;
+      if (p1 !== p2) { msg('The two passwords do not match.', true); return; }
+      msg('Updating…');
+      try {
+        var r = await sb.auth.updateUser({ password: p1 });
+        if (r.error) { msg(r.error.message, true); return; }
+        msg('Password updated.'); setTimeout(function () { o.remove(); }, 1500);
+      } catch (err) { msg(err.message || 'Could not update the password.', true); }
+    });
+    document.getElementById('ph-pw1').focus();
   }
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
