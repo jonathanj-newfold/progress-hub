@@ -15,7 +15,7 @@
 
   var realLS = window.localStorage;
   var cache = {}, versions = {}, serverVals = {}, dirty = {}, inFlight = {}, conflicts = {};
-  var sb, myId = null, myName = '', role = 'viewer', names = {};
+  var sb, myId = null, myEmail = '', myName = '', role = 'viewer', names = {};
   var readyAt = 0, timer = null, flushing = false, again = false, retryMs = 0, viewNote = false, curBanner = '';
   var isDev = function (k) { return DEVICE_RE.test(k); };
 
@@ -130,7 +130,7 @@
 
   /* ---------- sign in / hydrate ---------- */
   async function start(session) {
-    myId = session.user.id;
+    myId = session.user.id; myEmail = session.user.email || '';
     var pr = await sb.from('profiles').select('id,display_name').eq('id', myId);
     if (pr.error) throw new Error('Could not load your profile. Check your connection.');
     (pr.data || []).forEach(function (p) {
@@ -185,9 +185,9 @@
     if (!o) {
       o = document.createElement('div'); o.id = 'ph-login';
       o.innerHTML = '<form><h1>Progress Hub</h1><p id="ph-sub">Sign in to continue</p>' +
-        '<input id="ph-name" type="text" placeholder="Your name" autocomplete="name" style="display:none">' +
-        '<input id="ph-email" type="email" placeholder="Email" autocomplete="username" required>' +
-        '<input id="ph-pass" type="password" placeholder="Password" autocomplete="current-password" minlength="8" required>' +
+        '<input id="ph-name" name="name" type="text" placeholder="Your name" autocomplete="name" style="display:none">' +
+        '<input id="ph-email" name="email" type="email" placeholder="Email" autocomplete="username" required>' +
+        '<input id="ph-pass" name="password" type="password" placeholder="Password" autocomplete="current-password" minlength="8" required>' +
         '<button type="submit">Sign in</button><div id="ph-login-msg"></div>' +
         '<a href="#" id="ph-toggle">New here? Create an account</a></form>';
       document.documentElement.appendChild(o);
@@ -219,6 +219,7 @@
             r = await sb.auth.signInWithPassword({ email: email, password: pass });
             if (r.error) { setMsg('Wrong email or password.', true); btn.disabled = false; return; }
           }
+          try { if (window.PasswordCredential && navigator.credentials) navigator.credentials.store(new PasswordCredential({ id: email, password: pass })); } catch (e) {}
           await start(r.data.session);
         } catch (err) { setMsg(err.message || 'Sign-in failed.', true); btn.disabled = false; }
       });
@@ -240,8 +241,9 @@
     if (document.getElementById('ph-pw')) return;
     var o = document.createElement('div'); o.id = 'ph-pw';
     o.innerHTML = '<form><h2>Change password</h2>' +
-      '<input id="ph-pw1" type="password" placeholder="New password (min 8 characters)" autocomplete="new-password" minlength="8" required>' +
-      '<input id="ph-pw2" type="password" placeholder="Confirm new password" autocomplete="new-password" minlength="8" required>' +
+      '<input type="text" name="email" autocomplete="username" value="' + esc(myEmail) + '" tabindex="-1" aria-hidden="true" style="position:absolute;opacity:0;height:0;width:0;pointer-events:none">' +
+      '<input id="ph-pw1" name="new-password" type="password" placeholder="New password (min 8 characters)" autocomplete="new-password" minlength="8" required>' +
+      '<input id="ph-pw2" name="confirm-password" type="password" placeholder="Confirm new password" autocomplete="new-password" minlength="8" required>' +
       '<div class="row"><button type="button" data-a="x">Cancel</button><button type="submit">Update</button></div><div id="ph-pw-msg"></div></form>';
     document.documentElement.appendChild(o);
     var msg = function (t, err) { var m = document.getElementById('ph-pw-msg'); m.textContent = t; m.className = err ? 'err' : ''; };
